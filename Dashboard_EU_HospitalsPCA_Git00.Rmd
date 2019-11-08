@@ -1,0 +1,2253 @@
+---
+title: "Europe's Hospitals"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+    theme: spacelab
+
+runtime: shiny
+---
+
+```{r setup, include=FALSE, warning=FALSE}
+
+library(flexdashboard)
+library(shiny)
+
+source("Git_000_src_cd_librariesPCA.R")
+source("Git_010_src_cd_HospitalData.R")
+source("Git_011_src_cd_HospitalCountry.R")
+source("Git_012_src_cd_HospitalRegion.R")
+
+# Setting the ggplot overall theme! 
+theme_ref = theme_tufte() + 
+  theme(text = element_text(family = "serif", size = 14),
+        title = element_text(color = "#990000"))
+theme_set(theme_ref)
+
+```
+
+
+Hospital Stays/Discharges by Country
+===============================================================================
+
+
+```{r Europe_Hospitals_country, include=FALSE}
+
+# EU Hospital Discharge Variables
+  react_country_variables <- reactive({
+
+    data1 <- data_list_country 
+
+      data1 <- data1 %>% 
+
+        pluck(input$country_variables) # 3 variables principales
+    
+    data1
+  })
+
+# EU Hospital Discharge Categories
+  react_country_categories <- reactive({
+
+    data2 <- react_country_variables() %>% 
+
+        filter(icd10 == input$country_categories) # 14 disease categories
+    
+    data2
+    
+  })
+  
+  
+  # EU Hospital Discharge for Clusters by Gender 
+  react_cluster_c <- reactive({
+
+    data3 <-  tibble(Number = 1:9, # indices to be chosen among
+                     Cluster_Country = c("hosp_dis_t17",
+                                         "hosp_dis_m17",
+                                         "hosp_dis_f17",
+                                         "hosp_dis_day_t17",
+                                         "hosp_dis_day_m17",
+                                         "hosp_dis_day_f17",
+                                         "hosp_length_tot17",
+                                         "hosp_length_male17",
+                                         "hosp_length_female17"))
+      
+    clust_selected = data3 %>% 
+      filter(Cluster_Country == input$country_gender1) %>% 
+      pull(Number)
+
+    # Exctract chosen Cluster
+    res.pca_list_c[[clust_selected]]
+    
+  })
+
+  
+  # Cluster plot labels (ggtitle)
+    react_cluster_title_c <- reactive({
+
+    data33 <-  tibble(Label = c("Discharges by diagnosis (Total in-patients)",
+                        "Discharges by diagnosis (Male in-patients)",
+                        "Discharges by diagnosis (Female in-patients)",
+                        "Discharges by diagnosis (Total day cases)",
+                        "Discharges by diagnosis (Male day cases)",
+                        "Discharges by diagnosis (Female day cases)",
+                        "(Total) In-patient stay length (days)",
+                        "(Male) In-patient stay length (days)",
+                        "(Female) In-patient stay length (days)"),
+                     Cluster_Country = c("hosp_dis_t17",
+                                         "hosp_dis_m17",
+                                         "hosp_dis_f17",
+                                         "hosp_dis_day_t17",
+                                         "hosp_dis_day_m17",
+                                         "hosp_dis_day_f17",
+                                         "hosp_length_tot17",
+                                         "hosp_length_male17",
+                                         "hosp_length_female17"))
+    
+    clust_title_selected_c = data33 %>% 
+      filter(Cluster_Country == input$country_gender1) %>% 
+      pull(Label)
+
+    # title selected
+  clust_title_selected_c 
+  
+    })
+
+  
+  # EU Maps reacting to categories
+
+  react_mapcountry_categories <- reactive({
+    data4 = df_hosp_list_glong_c
+    data4
+    
+  })
+  
+
+  # Colors for EU Hospital Discharges by disease categoriy! 
+  react_mapcolor_c <- reactive({
+    # Filter the data
+    
+    df_colors = brewer.pal.info
+    all_colors = rownames(df_colors)
+    
+    
+    seq_colors = df_colors %>% 
+      cbind(all_colors) %>% 
+      filter(category == "seq") %>% 
+      mutate(all_colors = as.character(all_colors)) %>% 
+      pull(all_colors)
+
+    
+# Preparing list of color sets to map over for leaflet maps
+   colors = as.list(seq_colors[1:14]) 
+ 
+# Preparing list of single colors for barcharts/densities     
+#    fun_color_extract = function(couleur){
+#   
+#   brewer.pal(5, couleur)[5]
+#   
+# }
+# map_colors = map(colors, fun_color_extract)
+    
+    data4 <-  tibble(Number = 1:14,
+                     Color = unlist(colors),
+                     Category = c("Endocrine, nutritional and metabolic diseases",
+                                                              "Mental and behavioural disorders",
+                                                              "Diseases of the nervous system",
+                                                              "Diseases of the circulatory system",
+                                                              "Diseases of the respiratory system",
+                                                              "Diseases of the digestive system",
+                                                              "Diseases of the skin and subcutaneous tissue",
+                                                              "Diseases of the musculoskeletal system and connective tissue",
+                                                              "Diseases of the genitourinary system",
+                                                              "Pregnancy, childbirth and the puerperium",
+                                                              "Certain conditions originating in the perinatal period",
+                                                              "Congenital malformations, deformations and chromosomal abnormalities",
+                                                              "Symptoms, signs and abnormal clinical and laboratory findings, not elsewhere classified",
+                                                              "Factors influencing health status and contact with health services"))
+      
+    col_selected = data4 %>% 
+      filter(Category == input$country_categories) %>% 
+      pull(Color)
+
+    col_selected
+    
+  })
+  
+
+  react_sum_country <- reactive({
+  
+  sum_hosp_list_long_country %>% 
+      filter(Combination == input$country_gender1) %>% 
+      mutate(icd10 = fct_recode(icd10,
+                                "Endocrine, nutritional and metabolic diseases" = "E",
+                            "Mental and behavioural disorders" = "F",
+                            "Diseases of the nervous system" = "G",
+                            "Diseases of the circulatory system" = "I",
+                            "Diseases of the respiratory system" = "J",
+                            "Diseases of the digestive system" = "K",
+                            "Diseases of the skin and subcutaneous tissue" = "L",
+                            "Diseases of the musculoskeletal system and connective tissue" = "M",
+                            "Diseases of the genitourinary system" = "N",
+                            "Pregnancy, childbirth and the puerperium" = "O",
+                            "Certain conditions originating in the perinatal period" = "P",
+                            "Congenital malformations, deformations and chromosomal abnormalities" = "Q",
+                            "Symptoms, signs and abnormal clinical and laboratory findings, not elsewhere classified" = "R",
+                            "Factors influencing health status and contact with health services" = "Z")) %>% 
+      select(-Combination, Disease_Category = icd10)
+  
+   })
+  
+```
+
+
+Column {data-width=300 .sidebar}
+-----------------------------------------------------------------------
+
+```{r hospital_country_DT}
+# 3 variables
+selectInput("country_variables", 
+            "Select a variable:",
+            choices = c(
+              "Hospital inpatients' discharges" = "hosp_dis",
+              "Hospital day discharges" = "hosp_dis_day",
+              " Hospital stay lengths" = "hosp_length"))
+
+# 14 disease categories
+selectInput("country_categories", 
+            "Select a category:",
+            choices = c(data_list_country[[1]][2] %>% pull %>% levels))
+
+DT::renderDataTable({
+
+datatable(react_country_categories() %>% 
+            select(Country = geo, Gender, Rate) %>% 
+            arrange(-Rate),
+          rownames=FALSE,
+          extensions = c("FixedColumns"),
+          #filter = 'top',
+          options = list(scrollX = TRUE, 
+                         fixedColumns = list(leftColumns = 1),
+                         pageLength=5,
+                         columnDefs = list(list(className = 'dt-center', targets = "_all")),
+                         language = list(sSearch = "Filter:")))  %>% 
+  formatRound("Rate", 
+              mark = ".", 
+              digits = 1)
+  
+  })
+
+```
+
+
+
+Column {data-width=400 .tabset}
+-----------------------------------------------------------------------
+
+```{r}
+
+selectInput("country_gender1", 
+            "Select a case:",
+            choices = c("Discharges by diagnosis (Total in-patients)" = "hosp_dis_t17",
+                        "Discharges by diagnosis (Male in-patients)" = "hosp_dis_m17",
+                        "Discharges by diagnosis (Female in-patients)" = "hosp_dis_f17",
+                        "Discharges by diagnosis (Total day cases)" = "hosp_dis_day_t17",
+                        "Discharges by diagnosis (Male day cases)" = "hosp_dis_day_m17",
+                        "Discharges by diagnosis (Female day cases)" = "hosp_dis_day_f17",
+                        "(Total) In-patient stay length (days)" = "hosp_length_tot17",
+                        "(Male) In-patient stay length (days)" = "hosp_length_male17",
+                        "(Female) In-patient stay length (days)" = "hosp_length_female17"))
+
+
+```
+
+
+### Discharge Data Clusters
+
+
+```{r hospital_country_cluster}
+
+# European Clusters by country 
+
+renderPlot({
+
+fviz_cluster(react_cluster_c(),
+             main = react_cluster_title_c(),
+             axes = 1:2, 
+             repel = T, 
+             ggtheme = theme_bw() +
+  theme(text = element_text(family = "serif", size = 14),
+        title = element_text(color = "#990000"))) # #8b0000
+
+ })
+```
+
+
+### Discharge Category Maps
+
+
+```{r Hospital_country_maps, include=FALSE}
+
+
+### Plotting European Map data by country
+
+react_country_leaf <- reactive({
+  
+data_leaf = react_mapcountry_categories()
+  
+qpal_spec <- colorQuantile(react_mapcolor_c(), # derived selected color!
+                        domain = data_leaf %>% 
+                                filter(Combination == input$country_gender1) %>% 
+                                pluck("DataLongCountryGIS") %>% 
+                                pluck(1) %>% # tibble still as list!!!
+                                rename(Rate = values) %>% 
+                                filter(icd10  == input$country_categories) %>% 
+                                pull(Rate), 
+                        n = 5)
+
+leaf_spec = data_leaf %>% 
+  filter(Combination == input$country_gender1) %>% 
+  pluck("DataLongCountryGIS") %>% 
+  pluck(1) %>% 
+  rename(Rate = values) %>% 
+  filter(icd10  == input$country_categories) %>% 
+  st_as_sf() %>% 
+  
+  leaflet() %>% 
+  addProviderTiles(providers$Esri.WorldGrayCanvas,
+                   options = providerTileOptions(opacity = 0.5)) %>% 
+  setView(lat = 55, lng = 20, zoom = 3) %>%
+  addPolygons(weight = 1,
+              fillOpacity = 1,
+              # color = ~color(),
+              fillColor = ~colorQuantile(react_mapcolor_c(),  Rate)(Rate), 
+              label = ~paste0("Country: ", 
+                              Country , 
+                              " - ",
+                              "Rate per 100.000 inhabitants: ", 
+                              prettyNum(round(Rate,1), accuracy = 1)),
+              highlight = highlightOptions(weight = 2,
+                                           color = "darkgreen",
+                                           bringToFront = TRUE)) %>% 
+  addLegend(pal = qpal_spec,
+            title = "Quantiles",
+            values = ~Rate,
+            opacity = 1.0,
+            labFormat = labelFormat(transform = function(x) round(100*x)))
+
+
+})
+  
+```
+
+
+```{r hospital_country_leaflet}
+
+renderLeaflet({
+
+react_country_leaf()
+
+})
+
+```
+
+
+### Summary
+
+
+```{r hospital_country_summary_DT}
+
+# ### Summary EU diseases by DISCHARGE Typpe, stay lengths and gender!
+DT::renderDataTable({
+
+datatable(react_sum_country(),
+          rownames=FALSE,
+          extensions = c("FixedColumns"),
+          options = list(scrollX = TRUE,
+                         fixedColumns = list(leftColumns = 1),
+                         pageLength=10,
+                         language = list(sSearch = "Filter:")))  %>%
+  formatRound("Min",
+              mark = ".",
+              digits = 1) %>%
+
+  formatRound("Median",
+              mark = ".",
+              digits = 1) %>%
+
+  formatRound("Mean",
+              mark = ".",
+              digits = 1) %>%
+
+  formatRound("Max",
+              mark = ".",
+              digits = 1) %>%
+
+  formatRound("Standard_Deviation",
+              mark = ".",
+              digits = 1)
+
+})
+
+```
+
+
+Column {data-width=300 data-height=300 .tabset}
+-----------------------------------------------------------------------
+
+
+```{r bar_country, include = FALSE}
+
+### Plotting bar Charts by diseases and gender!!!
+react_country_bar_top <- reactive({
+  
+  data_bar = react_country_variables()
+  
+  sex = c("All", "Male", "Female")
+ 
+   col = c("#4daf4a", # All = Vert
+           "#377eb8", # Male = Bleu
+           "#e41a1c") # Female = Rouge
+
+# Bar Plot Function Vs Facet_grid (not nicely shaped!!!)
+fun_bar_sex_top = function(sex, col){
+  
+  data_bar %>% 
+    filter(icd10 == input$country_categories) %>% 
+    filter(Gender == sex) %>% 
+    select(geo, Gender, Rate) %>% 
+    group_by(Gender) %>% 
+    arrange(Gender, -Rate) %>% 
+    top_n(10) %>% 
+    ggplot(aes(fct_reorder(geo, Rate), Rate)) + 
+    geom_col(fill = col) + # "#008837"
+    # facet_grid(Gender ~ . ) + 
+    scale_x_discrete("") +
+    scale_y_continuous("Per 100.000 Inhabitants") +
+    ggtitle(paste0(sex, " :", input$country_categories)) +
+    coord_flip() 
+}
+
+ggbar_bar_sex_top = map2(sex, col, fun_bar_sex_top)  
+  
+# x11()
+grid.arrange(ggbar_bar_sex_top[[1]], 
+             ggbar_bar_sex_top[[2]], 
+             ggbar_bar_sex_top[[3]], 
+             ncol= 1)
+
+
+})
+
+
+
+react_country_bar_bottom <- reactive({
+  
+  data_bar = react_country_variables()
+  
+  sex = c("All", "Male", "Female")
+  
+  col = c("#4daf4a", # All = Vert
+          "#377eb8", # Male = Bleu
+          "#e41a1c") # Female = Rouge
+
+
+# Separate bottom
+fun_bar_sex_bottom = function(sex, col){
+  
+  data_bar %>% 
+    filter(icd10 == input$country_categories) %>% 
+    
+    filter(Gender == sex) %>% 
+    select(geo, Gender, Rate) %>% 
+    group_by(Gender) %>% 
+    arrange(Gender, -Rate) %>% 
+    top_n(-10) %>% 
+    ggplot(aes(fct_reorder(geo, -Rate), Rate)) + 
+    geom_col(fill = col) +
+    # facet_grid(Gender ~ . ) + 
+    scale_x_discrete("") +
+    scale_y_continuous("Per 100.000 Inhabitants") +
+    ggtitle(paste0(sex, " :", input$country_categories)) +
+    coord_flip() 
+}
+
+ggbar_bar_sex_bottom  = map2(sex, col, fun_bar_sex_bottom)  
+
+
+# x11()
+grid.arrange(ggbar_bar_sex_bottom [[1]], 
+             ggbar_bar_sex_bottom [[2]], 
+             ggbar_bar_sex_bottom [[3]], 
+             ncol= 1)
+
+
+})
+
+
+```
+
+
+### Top-10-Charts
+
+```{r country_top_barchart}
+
+renderPlot({
+
+  react_country_bar_top()
+      
+     # ggplotly(react_country_bar_top(), tooltip = c("Country", "values")) 
+
+})     
+
+```
+
+
+### Bottom-10-Charts
+
+```{r country_bottom_barchart}
+renderPlot({
+
+      react_country_bar_bottom()
+  
+     # ggplotly(react_country_bar_bottom(), tooltip = c("Country", "values")) 
+  
+  })     
+```
+
+
+### Densities
+
+```{r country_sex_density}
+
+#### Densityies by Genden and 14 Disease categories
+renderPlot({
+
+data_dens = react_country_variables() 
+
+sexes = c("All", "Male", "Female")
+
+couleurs = c("#4daf4a", # All = Vert
+             "#377eb8", # Male = Bleu
+             "#e41a1c") # Female = Rouge
+
+
+fun_dens_country_sex = function(sex, col){
+
+  ggplot(
+    
+  data_dens %>%
+    filter(icd10 == input$country_categories) %>% 
+    filter(Gender == sex),
+  aes(Rate, fill = sex)) +
+  geom_density(alpha = .5, 
+               color = NA,
+               show.legend = FALSE) + 
+  scale_x_continuous(input$country_categories) +
+  scale_y_continuous(sex) +
+  scale_fill_manual(values = col)
+  
+}
+
+ggdens_country_gender = map2(sexes, couleurs, fun_dens_country_sex)
+
+# x11()
+grid.arrange(ggdens_country_gender[[1]],
+             ggdens_country_gender[[2]],
+             ggdens_country_gender[[3]],
+             ncol= 1) # ncol= 3)
+  
+})
+
+```
+
+
+Hospital Stays/Discharges by Region
+===============================================================================
+
+
+```{r Europe_Hospitals_region, include=FALSE}
+
+# EU Hospital Discharge Variables
+  react_region_variables <- reactive({
+
+    data1 <- data_list_region 
+
+      data1 <- data1 %>% 
+
+        pluck(input$region_variables) # 3 variables principales
+    
+    data1
+  })
+
+# EU Hospital Discharge Categories
+  react_region_categories <- reactive({
+
+    data2 <- react_region_variables() %>% 
+
+        filter(icd10 == input$region_categories)
+    
+    data2
+    
+  })
+  
+  
+  # EU Hospital Discharge for Clusters by Gender 
+  react_cluster_r <- reactive({
+
+    data3 <-  tibble(Number = 1:9,
+                     Cluster_Region = c("hosp_dis_t17",
+                                         "hosp_dis_m17",
+                                         "hosp_dis_f17",
+                                         "hosp_dis_day_t17",
+                                         "hosp_dis_day_m17",
+                                         "hosp_dis_day_f17",
+                                         "hosp_length_tot17",
+                                         "hosp_length_male17",
+                                         "hosp_length_female17"))
+      
+    clust_selected = data3 %>% 
+      filter(Cluster_Region == input$region_gender1) %>% 
+      pull(Number)
+
+    res.pca_list_r[[clust_selected]]
+    
+  })
+  
+  
+  
+  react_cluster_title_r <- reactive({
+
+    data333 <-  tibble(Label = c("Discharges by diagnosis (Total in-patients)",
+                        "Discharges by diagnosis (Male in-patients)",
+                        "Discharges by diagnosis (Female in-patients)",
+                        "Discharges by diagnosis (Total day cases)",
+                        "Discharges by diagnosis (Male day cases)",
+                        "Discharges by diagnosis (Female day cases)",
+                        "(Total) In-patient stay length (days)",
+                        "(Male) In-patient stay length (days)",
+                        "(Female) In-patient stay length (days)"),
+                     Cluster_Region = c("hosp_dis_t17",
+                                         "hosp_dis_m17",
+                                         "hosp_dis_f17",
+                                         "hosp_dis_day_t17",
+                                         "hosp_dis_day_m17",
+                                         "hosp_dis_day_f17",
+                                         "hosp_length_tot17",
+                                         "hosp_length_male17",
+                                         "hosp_length_female17"))
+    
+    clust_title_selected_r = data333 %>% 
+      filter(Cluster_Region == input$region_gender1) %>% 
+      pull(Label)
+
+  clust_title_selected_r 
+  
+    })
+  
+  
+  
+
+# EU Maps reacting to categories
+ 
+  react_mapregion_categories <- reactive({
+    data4 = df_hosp_list_glong_r
+    data4
+    
+  })
+  
+  
+  
+  # EU Hospital Discharge for Clusters by Gender 
+  react_mapcolor_r <- reactive({
+
+    df_colors = brewer.pal.info
+    all_colors = rownames(df_colors)
+    
+    
+    seq_colors = df_colors %>% 
+      cbind(all_colors) %>% 
+      filter(category == "seq") %>% 
+      mutate(all_colors = as.character(all_colors)) %>% 
+      pull(all_colors)
+
+    
+### Preparing list of color sets to map over for leaflet maps
+   colors = as.list(seq_colors[1:14]) 
+
+# Preparing single colors   
+#    fun_color_extract = function(couleur){
+#   
+#   brewer.pal(5, couleur)[5]
+#   
+# }
+# map_colors = map(colors, fun_color_extract)
+    
+    data4 <-  tibble(Number = 1:14,
+                     Color = unlist(colors),
+                     Category = c("Endocrine, nutritional and metabolic diseases",
+                                                              "Mental and behavioural disorders",
+                                                              "Diseases of the nervous system",
+                                                              "Diseases of the circulatory system",
+                                                              "Diseases of the respiratory system",
+                                                              "Diseases of the digestive system",
+                                                              "Diseases of the skin and subcutaneous tissue",
+                                                              "Diseases of the musculoskeletal system and connective tissue",
+                                                              "Diseases of the genitourinary system",
+                                                              "Pregnancy, childbirth and the puerperium",
+                                                              "Certain conditions originating in the perinatal period",
+                                                              "Congenital malformations, deformations and chromosomal abnormalities",
+                                                              "Symptoms, signs and abnormal clinical and laboratory findings, not elsewhere classified",
+                                                              "Factors influencing health status and contact with health services"))
+      
+    col_selected = data4 %>% 
+      filter(Category == input$region_categories) %>% 
+      pull(Color)
+
+    col_selected
+    
+  })
+
+  react_sum_region <- reactive({
+  
+  sum_hosp_list_long_region %>% 
+      filter(Combination == input$region_gender1) %>% 
+      mutate(icd10 = fct_recode(icd10,
+                                "Endocrine, nutritional and metabolic diseases" = "E",
+                            "Mental and behavioural disorders" = "F",
+                            "Diseases of the nervous system" = "G",
+                            "Diseases of the circulatory system" = "I",
+                            "Diseases of the respiratory system" = "J",
+                            "Diseases of the digestive system" = "K",
+                            "Diseases of the skin and subcutaneous tissue" = "L",
+                            "Diseases of the musculoskeletal system and connective tissue" = "M",
+                            "Diseases of the genitourinary system" = "N",
+                            "Pregnancy, childbirth and the puerperium" = "O",
+                            "Certain conditions originating in the perinatal period" = "P",
+                            "Congenital malformations, deformations and chromosomal abnormalities" = "Q",
+                            "Symptoms, signs and abnormal clinical and laboratory findings, not elsewhere classified" = "R",
+                            "Factors influencing health status and contact with health services" = "Z")) %>% 
+      
+      select(-Combination, Disease_Category = icd10)
+  
+   })
+  
+  
+  
+```
+
+
+Column {data-width=300 .sidebar}
+-----------------------------------------------------------------------
+
+```{r hospital_region_DT}
+
+selectInput("region_variables", 
+            "Select a variable:",
+            choices = c(
+              "Hospital inpatients' discharges" = "hosp_dis",
+              "Hospital day discharges" = "hosp_dis_day",
+              " Hospital stay lengths" = "hosp_length"))
+
+selectInput("region_categories", 
+            "Select a category:",
+            choices = c(data_list_region[[1]][2] %>% pull %>% levels))
+
+DT::renderDataTable({
+
+datatable(react_region_categories() %>% 
+            
+            select(Country = geo, Gender, Rate) %>% 
+            arrange(-Rate),
+          rownames=FALSE,
+          extensions = c("FixedColumns"),
+          # filter = 'top',
+          options = list(scrollX = TRUE, 
+                         fixedColumns = list(leftColumns = 1),
+                         pageLength=5,
+                         columnDefs = list(list(className = 'dt-center', targets = "_all")),
+                         language = list(sSearch = "Filter:")))  %>% 
+  formatRound("Rate", 
+              mark = ".", 
+              digits = 1)
+  
+  })
+
+```
+
+
+
+Column {data-width=400 .tabset}
+-----------------------------------------------------------------------
+
+```{r select_region_gender}
+
+selectInput("region_gender1", 
+            "Select a case:",
+            choices = c("Discharges by diagnosis (Total in-patients)" = "hosp_dis_t17",
+                        "Discharges by diagnosis (Male in-patients)" = "hosp_dis_m17",
+                        "Discharges by diagnosis (Female in-patients)" = "hosp_dis_f17",
+                        "Discharges by diagnosis (Total day cases)" = "hosp_dis_day_t17",
+                        "Discharges by diagnosis (Male day cases)" = "hosp_dis_day_m17",
+                        "Discharges by diagnosis (Female day cases)" = "hosp_dis_day_f17",
+                        "(Total) In-patient stay length (days)" = "hosp_length_tot17",
+                        "(Male) In-patient stay length (days)" = "hosp_length_male17",
+                        "(Female) In-patient stay length (days)" = "hosp_length_female17"))
+
+```
+
+
+
+### Discharge Data Clusters
+
+
+```{r hospital_region_cluster}
+
+# European clusters by discharge/stay and gender by REGION!
+
+renderPlot({
+
+fviz_cluster(react_cluster_r(),
+             main = react_cluster_title_r(),
+             axes = 1:2, 
+             repel = T, 
+             ggtheme = theme_bw() +
+  theme(text = element_text(family = "serif", size = 14),
+        title = element_text(color = "#990000"))) # #8b0000
+
+ })
+```
+
+
+### Discharge Category Maps
+
+
+```{r Hospital_region_maps, include=FALSE}
+
+### Plotting Map data for regional discharges by disease category
+
+react_region_leaf <- reactive({
+  
+data_leaf = react_mapregion_categories()
+  
+qpal_spec <- colorQuantile(react_mapcolor_r(),
+                        domain = data_leaf %>% 
+                                filter(Combination == input$region_gender1) %>% 
+                                pluck("DataLongRegionGIS") %>% 
+                                pluck(1) %>% # tibble still as list!!!
+                                rename(Rate = values) %>% 
+                                filter(icd10  == input$region_categories) %>% 
+                                pull(Rate), 
+                        n = 5)
+
+leaf_spec = data_leaf %>% 
+  filter(Combination == input$region_gender1) %>% 
+  pluck("DataLongRegionGIS") %>% 
+  pluck(1) %>% 
+  rename(Rate = values) %>% 
+  filter(icd10  == input$region_categories) %>% 
+  st_as_sf() %>% 
+  
+  leaflet() %>% 
+  addProviderTiles(providers$Esri.WorldGrayCanvas,
+                   options = providerTileOptions(opacity = 0.5)) %>% 
+  setView(lat = 47, lng = 10, zoom = 4) %>% # 55 to 45 
+  addPolygons(weight = 1,
+              fillOpacity = 1,
+              # color = ~color(),
+              fillColor = ~colorQuantile(react_mapcolor_r(),  Rate)(Rate), 
+              label = ~paste0("Region: ", 
+                              Country , 
+                              " - ",
+                              "Rate per 100.000 inhabitants: ", 
+                              prettyNum(round(Rate,1), accuracy = 1)),
+              highlight = highlightOptions(weight = 2,
+                                           color = "darkgreen",
+                                           bringToFront = TRUE)) %>% 
+  addLegend(pal = qpal_spec,
+            title = "Quantiles",
+            values = ~Rate,
+            opacity = 1.0,
+            labFormat = labelFormat(transform = function(x) round(100*x)))
+
+
+})
+  
+```
+
+
+```{r hospital_region_leaflet}
+
+renderLeaflet({
+
+react_region_leaf()
+
+})
+
+```
+
+
+### Summary
+
+
+```{r hospital_region_summary_DT}
+
+# ### Summary EU Discharges by 14 disease! (Regio)
+DT::renderDataTable({
+
+datatable(react_sum_region(),
+
+          rownames=FALSE,
+          extensions = c("FixedColumns"),
+          options = list(scrollX = TRUE,
+                         fixedColumns = list(leftColumns = 1),
+                         pageLength=10,
+                         language = list(sSearch = "Filter:")))  %>%
+  formatRound("Min",
+              mark = ".",
+              digits = 1) %>%
+
+  formatRound("Median",
+              mark = ".",
+              digits = 1) %>%
+
+  formatRound("Mean",
+              mark = ".",
+              digits = 1) %>%
+
+  formatRound("Max",
+              mark = ".",
+              digits = 1) %>%
+
+  formatRound("Standard_Deviation",
+              mark = ".",
+              digits = 1)
+
+})
+
+```
+
+
+
+Column {data-width=300 data-height=300 .tabset}
+-----------------------------------------------------------------------
+
+
+```{r bar_region, include = FALSE}
+
+### Plotting bar Charts by gender and 14 disease categories - REGIONAL
+
+react_region_bar_top <- reactive({
+  
+  data_bar = react_region_variables()
+  sex = c("All", "Male", "Female")
+  col = c("#4daf4a", # All = Vert
+          "#377eb8", # Male = Bleu
+          "#e41a1c") # Female = Rouge
+
+
+fun_bar_sex_top = function(sex, col){
+  
+  data_bar %>% 
+
+  filter(icd10 == input$region_categories) %>%
+  
+  filter(Gender == sex) %>% 
+  select(geo, Gender, Rate) %>% 
+  group_by(Gender) %>% 
+  arrange(Gender, -Rate) %>% 
+  top_n(10) %>% 
+  ggplot(aes(fct_reorder(geo, Rate), Rate)) + 
+  geom_col(fill = col) + # "#008837"
+  # facet_grid(Gender ~ . ) + 
+  scale_x_discrete("") +
+  scale_y_continuous("Per 100.000 Inhabitants") +
+  ggtitle(paste0(sex, " :", input$region_categories)) +
+  coord_flip() 
+}
+
+ggbar_bar_sex_top = map2(sex, col, fun_bar_sex_top)  
+  
+
+# x11()
+grid.arrange(ggbar_bar_sex_top[[1]], 
+             ggbar_bar_sex_top[[2]], 
+             ggbar_bar_sex_top[[3]], 
+             ncol= 1) # ncol= 3)
+
+
+})
+
+
+react_region_bar_bottom <- reactive({
+  
+  data_bar = react_region_variables()
+  sex = c("All", "Male", "Female")
+  col = c("#4daf4a", # All = Vert
+          "#377eb8", # Male = Bleu
+          "#e41a1c") # Female = Rouge
+
+
+# Separate bottom
+fun_bar_sex_bottom = function(sex, col){
+  
+  data_bar %>% 
+
+    filter(icd10 == input$region_categories) %>% 
+    
+    filter(Gender == sex) %>% 
+    select(geo, Gender, Rate) %>% 
+    group_by(Gender) %>% 
+    arrange(Gender, -Rate) %>% 
+    top_n(-10) %>% 
+    ggplot(aes(fct_reorder(geo, -Rate), Rate)) + 
+    geom_col(fill = col) +
+    # facet_grid(Gender ~ . ) + 
+    scale_x_discrete("") +
+    scale_y_continuous("Per 100.000 Inhabitants") +
+    ggtitle(paste0(sex, " :", input$region_categories)) +
+    coord_flip() 
+}
+
+ggbar_bar_sex_bottom  = map2(sex, col, fun_bar_sex_bottom)  
+
+
+# x11()
+grid.arrange(ggbar_bar_sex_bottom [[1]], 
+             ggbar_bar_sex_bottom [[2]], 
+             ggbar_bar_sex_bottom [[3]], 
+             ncol= 1) 
+
+
+})
+
+
+```
+
+
+### Top-10-Charts
+
+```{r region_top_barchart}
+
+renderPlot({
+
+  react_region_bar_top()
+      
+     # ggplotly(react_region_bar_top(), tooltip = c("Country", "values")) 
+
+})     
+
+```
+
+
+### Bottom-10-Charts
+
+```{r region_bottom_barchart}
+renderPlot({
+
+      react_region_bar_bottom()
+  
+     # ggplotly(react_region_bar_bottom(), tooltip = c("Country", "values")) 
+  
+})     
+```
+
+
+### Densities
+
+```{r region_sex_density}
+
+#### Densityies by REGION and Gender and 14 disease categories!
+renderPlot({
+
+data_dens = react_region_variables() 
+
+sexes = c("All", "Male", "Female")
+couleurs = c("#4daf4a", # All = Vert
+             "#377eb8", # Male = Bleu
+             "#e41a1c") # Female = Rouge
+
+fun_dens_country_sex = function(sex, col){
+
+  ggplot(
+    
+  data_dens %>%
+    filter(icd10 == input$region_categories) %>% 
+    filter(Gender == sex),
+  aes(Rate, fill = sex)) +
+  geom_density(alpha = .5, 
+               color = NA,
+               show.legend = FALSE) + 
+  scale_x_continuous(input$region_categories) +
+  scale_y_continuous(sex) +
+  scale_fill_manual(values = col)
+  
+}
+
+ggdens_region_gender = map2(sexes, couleurs, fun_dens_country_sex)
+
+# x11()
+grid.arrange(ggdens_region_gender[[1]],
+             ggdens_region_gender[[2]],
+             ggdens_region_gender[[3]],
+             ncol= 1) 
+  
+})
+
+```
+
+
+
+Other Indicators by Country 
+===============================================================================
+
+
+Column {data-width=500 .tabset}
+-----------------------------------------------------------------------
+
+
+```{r hosp_country_select}
+
+selectInput("hosp_country", 
+            "Select a health indicator:",
+            choices = c(levels(hosp_extra_country$variable))) 
+```
+
+
+### Indicator Maps
+
+```{r reactive_hosp_country, include = FALSE}
+
+# Reactive of indicators (hospital) by COUNTRY - GIS
+  react_hosp_gcountry <- reactive({
+
+    data1 <- hosp_extra_gcountry
+
+      data1 <- data1 %>% 
+
+        filter(variable == input$hosp_country) # 3 variables principales
+    
+    data1
+  })
+
+# Reactive of indicators (hospital) by COUNTRY
+react_hosp_country <- reactive({
+
+    data1 <- hosp_extra_country
+
+      data1 <- data1 %>% 
+
+        filter(variable == input$hosp_country) # 3 variables principales
+    
+    data1
+  })
+
+  # EU Hospital Discharge for Map colors by Gender 
+  react_mapcolor_hosp_country <- reactive({
+
+    df_colors = brewer.pal.info
+    all_colors = rownames(df_colors)
+    
+    
+    seq_colors = df_colors %>% 
+      cbind(all_colors) %>% 
+      filter(category == "seq") %>% 
+      mutate(all_colors = as.character(all_colors)) %>% 
+      pull(all_colors)
+
+    
+### Preparing list to map over for auto-leaflet maps
+   colors = as.list(seq_colors[1:9]) 
+   
+#    fun_color_extract = function(couleur){
+#   
+#   brewer.pal(5, couleur)[5]
+#   
+# }
+# map_colors = map(colors, fun_color_extract)
+    
+    data4 <-  tibble(Number = 1:9,
+                     Color = unlist(colors),
+                     Category = c("Health care assistants",
+                                  "Health Personel", 
+                                  "Hospital Beds", 
+                                  "Hospital employment", 
+                                  "Medical doctors", 
+                                  "Nursing associate professionals", 
+                                  "Nursing professionals and midwives", 
+                                  "Other health service providers employed by hospital", 
+                                  "Other staff employed by hospital"))
+      
+    mapcol_selected = data4 %>% 
+      filter(Category == input$hosp_country) %>% 
+      pull(Color)
+
+    mapcol_selected
+    
+  })
+
+  
+### Plotting EXTRA hospital data - COUNTRY
+
+react_hosp_country_leaf <- reactive({
+  
+  data_leaf = react_hosp_gcountry()
+
+qpal_spec <- colorQuantile(react_mapcolor_hosp_country(),
+                        domain = data_leaf %>% 
+                          pull(values), 
+                        n = 5)
+
+leaf_spec = data_leaf %>%  # IF geometry not recognised as SF: st_as_sf() %>% 
+  # filter(Combination == input$country_gender2) %>% 
+  # pluck("DataLongCountryGIS") %>% 
+  # pluck(1) %>% 
+  # rename(Rate = values) %>% 
+  # filter(icd10  == input$country_categories) %>% 
+  # st_as_sf() %>% 
+  
+  leaflet() %>% 
+  addProviderTiles(providers$Esri.WorldGrayCanvas,
+                   options = providerTileOptions(opacity = 0.5)) %>% 
+  setView(lat = 55, lng = 20, zoom = 3) %>%
+  addPolygons(weight = 1,
+              fillOpacity = 1,
+              # color = ~color(),
+              fillColor = ~colorQuantile(react_mapcolor_hosp_country(),  values)(values), 
+              label = ~paste0("Country: ", 
+                              geo , 
+                              " - ",
+                              "Rate per 100.000 inhabitants: ", 
+                              prettyNum(round(values,1), accuracy = 1)),
+              highlight = highlightOptions(weight = 2,
+                                           color = "darkgreen",
+                                           bringToFront = TRUE)) %>% 
+  addLegend(pal = qpal_spec,
+            title = "Quantiles",
+            values = ~values,
+            opacity = 1.0,
+            labFormat = labelFormat(transform = function(x) round(100*x)))
+
+
+leaf_spec
+
+})
+
+
+# EU Hospital Discharge colors for barcharts by Gender - COUNTRY!
+  react_barcolor_hosp_country <- reactive({
+
+    df_colors = brewer.pal.info
+    all_colors = rownames(df_colors)
+    
+    
+    seq_colors = df_colors %>% 
+      cbind(all_colors) %>% 
+      filter(category == "seq") %>% 
+      mutate(all_colors = as.character(all_colors)) %>% 
+      pull(all_colors)
+
+    
+### EXTRACTING single colors to map over for bar charts!
+   colors = as.list(seq_colors[1:9]) 
+   
+   fun_color_extract = function(couleur){
+
+  brewer.pal(5, couleur)[5]
+
+}
+
+map_colors = map(colors, fun_color_extract)
+    
+    data5 <-  tibble(Number = 1:9,
+                     Color = unlist(map_colors),
+                     Category = c("Health care assistants",
+                                  "Health Personel", 
+                                  "Hospital Beds", 
+                                  "Hospital employment", 
+                                  "Medical doctors", 
+                                  "Nursing associate professionals", 
+                                  "Nursing professionals and midwives", 
+                                  "Other health service providers employed by hospital", 
+                                  "Other staff employed by hospital"))
+      
+    barcol_selected = data5 %>% 
+      filter(Category == input$hosp_country) %>% 
+      pull(Color)
+
+    barcol_selected
+    
+  })
+
+
+```
+
+
+```{r hosp_country_sup}
+
+renderLeaflet({
+
+  react_hosp_country_leaf()
+  
+})
+
+```
+
+
+### Top-15 Charts
+
+```{r top10-hosp-country}
+
+renderPlotly({
+   
+      cntybar_top = ggplot(react_hosp_country() %>% 
+                        arrange(-values) %>% top_n(15), 
+                      aes(x = fct_reorder(geo, values),
+                          y = values,
+                          fill = input$hosp_country)) + 
+        geom_col(show.legend = FALSE) +
+   
+        scale_x_discrete(name = "") +
+        scale_y_continuous(name = "Per 100.000 Inhabitants",
+                           labels = scales::comma) +
+        scale_fill_manual(values = react_barcolor_hosp_country()) + # selected colors!
+
+        coord_flip()
+      
+      
+     ggplotly(cntybar_top, tooltip = c("values"))  %>% layout(showlegend = FALSE)
+     
+})     
+```
+
+
+### Bottom-15 Charts
+
+```{r bottom10-hosp-country}
+
+renderPlotly({
+   
+      cntybar_bottom = ggplot(react_hosp_country() %>% 
+                        arrange(-values) %>% top_n(-15), 
+                      aes(x = fct_reorder(geo, -values),
+                          y = values,
+                          fill = input$hosp_country)) + 
+        geom_col(show.legend = FALSE) +
+   
+        scale_x_discrete(name = "") +
+        scale_y_continuous(name = "Per 100.000 Inhabitants",
+                           labels = scales::comma) +
+        scale_fill_manual(values = react_barcolor_hosp_country()) +
+
+        coord_flip() 
+      
+     ggplotly(cntybar_bottom, tooltip = c("values"))  %>% layout(showlegend = FALSE)
+     
+     
+})     
+```
+
+### Densities
+
+```{r hosp_country_density}
+
+#### Densityies for EXTRA hospital data by country!
+renderPlot({
+
+  ggplot(react_hosp_country(),
+         aes(x = values, 
+             fill = input$hosp_country)) + 
+    geom_density(alpha = .5, 
+               color = NA,
+               show.legend = FALSE) + 
+    scale_x_continuous("Per 100.000 Inhabitants") +
+    scale_fill_manual(values = react_barcolor_hosp_country())
+
+})
+```
+
+
+### Data
+
+```{r hosp_extra_country-data}
+
+# Data table
+DT::renderDataTable({
+
+datatable(hosp_extra_country %>%
+            select(Country = geo,
+                   Indicator = variable,
+                   Rate = values) %>%
+            arrange(-Rate),
+          rownames=FALSE,
+          extensions = c("FixedColumns"),
+          filter = 'top',
+          options = list(scrollX = TRUE,
+                         fixedColumns = list(leftColumns = 1),
+                         pageLength=5,
+                         language = list(sSearch = "Country Filter:")))  %>%
+  formatRound("Rate",
+              mark = ".",
+              digits = 1)
+})
+
+```
+
+
+
+
+Column {data-width=500 .tabset}
+-----------------------------------------------------------------------
+
+```{r socio_country_select}
+
+selectInput("socio_country", 
+            "Select a socio-economic indicator:",
+            choices = c(levels(socio_extra_country$variable)))
+```
+
+
+
+### Indicator Maps
+
+```{r reactive_socio_country, include = FALSE}
+
+# GIS data of socio-economic indicators!
+react_socio_gcountry <- reactive({
+
+    data1 <- socio_extra_gcountry 
+
+      data1 <- data1 %>% 
+
+        filter(variable == input$socio_country) # 3 variables principales
+    
+    data1
+  })
+
+# Simple data of socio-economic indicators!
+react_socio_country <- reactive({
+
+    data1 <- socio_extra_country 
+
+      data1 <- data1 %>% 
+
+        filter(variable == input$socio_country) # 3 variables principales
+    
+    data1
+  })
+
+  
+  # EU Hospital Discharge - Extra socio data map colors
+  react_mapcolor_socio_country <- reactive({
+    # Filter the data
+    
+    df_colors = brewer.pal.info
+    all_colors = rownames(df_colors)
+    
+    
+    seq_colors = df_colors %>% 
+      cbind(all_colors) %>% 
+      filter(category == "seq") %>% 
+      mutate(all_colors = as.character(all_colors)) %>% 
+      pull(all_colors)
+
+    
+### Preparing 2 list to map over for auto-leaflet maps
+   colors = as.list(seq_colors[1:8]) 
+   
+#    fun_color_extract = function(couleur){
+#   
+#   brewer.pal(5, couleur)[5]
+#   
+# }
+# map_colors = map(colors, fun_color_extract)
+    
+    data4 <-  tibble(Number = 1:8,
+                     Color = unlist(colors),
+                     Category = c("GDP per capita", 
+                                  "Old dependency ratio 60_20", 
+                                  "Old dependency ratio 65_15", 
+                                  "Proportion of 60-64 population", 
+                                  "Proportion of 60+ population", 
+                                  "Proportion of 65-69 population", 
+                                  "Proportion of 65+ population", 
+                                  "Women per 100 men"))
+      
+    mapcol_selected = data4 %>% 
+      filter(Category == input$socio_country) %>% 
+      pull(Color)
+
+    mapcol_selected
+    
+  })
+  
+# Plotting 
+react_socio_country_leaf <- reactive({
+  
+data_leaf = react_socio_gcountry()
+
+qpal_spec <- colorQuantile(react_mapcolor_socio_country(),
+                        domain = data_leaf %>% 
+                          pull(values), 
+                        n = 5)
+
+leaf_spec = data_leaf %>% # ATTENSION if needed: st_as_sf() %>% 
+  # filter(Combination == input$country_gender2) %>% 
+  # pluck("DataLongCountryGIS") %>% 
+  # pluck(1) %>% 
+  # rename(Rate = values) %>% 
+  # filter(icd10  == input$country_categories) %>% 
+  # st_as_sf() %>% 
+  
+  leaflet() %>% 
+  addProviderTiles(providers$Esri.WorldGrayCanvas,
+                   options = providerTileOptions(opacity = 0.5)) %>% 
+  setView(lat = 55, lng = 20, zoom = 3) %>%
+  addPolygons(weight = 1,
+              fillOpacity = 1,
+              # color = ~color(),
+              fillColor = ~colorQuantile(react_mapcolor_socio_country(),  values)(values), 
+              label = ~paste0("Country: ", 
+                              geo , 
+                              " - ",
+                              "Rate: ", 
+                              prettyNum(round(values,1), accuracy = 1)),
+              highlight = highlightOptions(weight = 2,
+                                           color = "darkgreen",
+                                           bringToFront = TRUE)) %>% 
+  addLegend(pal = qpal_spec,
+            title = "Quantiles",
+            values = ~values,
+            opacity = 1.0,
+            labFormat = labelFormat(transform = function(x) round(100*x)))
+
+
+leaf_spec
+
+})
+
+# EU sociodata colors 
+  react_barcolor_socio_country <- reactive({
+
+    df_colors = brewer.pal.info
+    all_colors = rownames(df_colors)
+    
+    
+    seq_colors = df_colors %>% 
+      cbind(all_colors) %>% 
+      filter(category == "seq") %>% 
+      mutate(all_colors = as.character(all_colors)) %>% 
+      pull(all_colors)
+
+    
+### Preparing list to map over for barcharts/densities!
+   colors = as.list(seq_colors[1:8]) 
+   
+   fun_color_extract = function(couleur){
+
+  brewer.pal(5, couleur)[5]
+
+}
+
+map_colors = map(colors, fun_color_extract)
+    
+    data5 <-  tibble(Number = 1:8,
+                     Color = unlist(map_colors),
+                     Category = c("GDP per capita", 
+                                  "Old dependency ratio 60_20", 
+                                  "Old dependency ratio 65_15", 
+                                  "Proportion of 60-64 population", 
+                                  "Proportion of 60+ population", 
+                                  "Proportion of 65-69 population", 
+                                  "Proportion of 65+ population", 
+                                  "Women per 100 men"))
+      
+    barcol_selected = data5 %>% 
+      filter(Category == input$socio_country) %>%
+      pull(Color)
+
+    barcol_selected
+    
+  })
+
+
+```
+
+
+```{r socio_country_sup}
+
+renderLeaflet({
+
+  react_socio_country_leaf()
+  
+})
+
+
+```
+
+
+### Top-15 Charts
+
+```{r top10-socio-country}
+
+renderPlotly({
+   
+      cntybar_top = ggplot(react_socio_country() %>% 
+                        arrange(-values) %>% top_n(15), 
+                      aes(x = fct_reorder(geo, values),
+                          y = values,
+                          fill = input$socio_country)) + 
+        geom_col(show.legend = FALSE) +
+   
+        scale_x_discrete(name = "") +
+        scale_y_continuous(name = "Per 100.000 Inhabitants",
+                           labels = scales::comma) +
+        scale_fill_manual(values = react_barcolor_socio_country()) +
+
+        coord_flip()
+      
+      
+     ggplotly(cntybar_top, tooltip = c("values"))  %>% layout(showlegend = FALSE)
+})     
+```
+
+
+### Bottom-15 Charts
+
+```{r bottom10-socio-country}
+
+renderPlotly({
+   
+      cntybar_bottom = ggplot(react_socio_country() %>% 
+                        arrange(-values) %>% top_n(-15), 
+                      aes(x = fct_reorder(geo, -values),
+                          y = values,
+                          fill = input$socio_country)) + 
+        geom_col(show.legend = FALSE) +
+   
+        scale_x_discrete(name = "") +
+        scale_y_continuous(name = "Per 100.000 Inhabitants",
+                           labels = scales::comma) +
+        scale_fill_manual(values = react_barcolor_socio_country()) +
+
+        coord_flip() 
+      
+     ggplotly(cntybar_bottom, tooltip = c("values"))  %>% layout(showlegend = FALSE)
+     
+     
+})     
+```
+
+### Densities
+
+```{r socio_country_density}
+
+#### Densities for socio indicators
+renderPlot({
+
+  ggplot(react_socio_country(),
+         aes(x = values,
+             fill = input$socio_country)) + 
+    geom_density(alpha = .5, 
+               color = NA,
+               show.legend = FALSE) + 
+    scale_x_continuous("Per 100.000 Inhabitants") +
+    scale_fill_manual(values = react_barcolor_socio_country())
+  
+})
+```
+
+
+### Data
+
+```{r socio_extra_country-data}
+
+DT::renderDataTable({
+
+datatable(socio_extra_country %>%
+            select(Country = geo,
+                   Indicator = variable,
+                   Rate = values) %>%
+            arrange(-Rate),
+          rownames=FALSE,
+          extensions = c("FixedColumns"),
+          filter = 'top',
+          options = list(scrollX = TRUE,
+                         fixedColumns = list(leftColumns = 1),
+                         pageLength=5,
+                         language = list(sSearch = "Country Filter:")))  %>%
+  formatRound("Rate",
+              mark = ".",
+              digits = 1)
+})
+
+```
+
+
+
+
+
+Other Indicators by Region 
+===============================================================================
+
+
+
+Column {data-width=500 .tabset}
+-----------------------------------------------------------------------
+
+```{r hosp_region_select}
+
+selectInput("hosp_region", 
+            "Select a health indicator:",
+            choices = c(levels(hosp_extra_region$variable))) 
+
+```
+
+
+### Indicator Maps
+
+```{r reactive_hosp_region, include = FALSE}
+
+
+  react_hosp_gregion <- reactive({
+
+    data1 <- hosp_extra_gregion
+
+      data1 <- data1 %>% 
+
+        filter(variable == input$hosp_region) # 3 variables principales
+    
+    data1
+  })
+
+react_hosp_region <- reactive({
+
+    data1 <- hosp_extra_region
+
+      data1 <- data1 %>% 
+
+        filter(variable == input$hosp_region) # 3 variables principales
+    
+    data1
+  })
+
+  # EU extra hospital data - map colors!
+  react_mapcolor_hosp_region <- reactive({
+    # Filter the data
+    
+    df_colors = brewer.pal.info
+    all_colors = rownames(df_colors)
+    
+    
+    seq_colors = df_colors %>% 
+      cbind(all_colors) %>% 
+      filter(category == "seq") %>% 
+      mutate(all_colors = as.character(all_colors)) %>% 
+      pull(all_colors)
+
+    
+### Preparing 2 list to map over for auto-leaflet maps
+   colors = as.list(seq_colors[1:2]) 
+   
+#    fun_color_extract = function(couleur){
+#   
+#   brewer.pal(5, couleur)[5]
+#   
+# }
+# map_colors = map(colors, fun_color_extract)
+    
+    data4 <-  tibble(Number = 1:2,
+                     Color = unlist(colors),
+                     Category = c("Health Personel", 
+                                  "Hospital Beds"))
+      
+    mapcol_selected = data4 %>% 
+      filter(Category == input$hosp_region) %>%
+      pull(Color)
+
+    mapcol_selected
+    
+  })
+
+  ### Plotting Map data
+
+react_hosp_region_leaf <- reactive({
+  
+data_leaf = react_hosp_gregion()
+
+qpal_spec <- colorQuantile(react_mapcolor_hosp_region(),
+                        domain = data_leaf %>% 
+                                pull(values), 
+                        n = 5)
+
+leaf_spec = data_leaf %>% 
+
+  leaflet() %>% 
+  addProviderTiles(providers$Esri.WorldGrayCanvas,
+                   options = providerTileOptions(opacity = 0.5)) %>% 
+  setView(lat = 55, lng = 20, zoom = 3) %>%
+  addPolygons(weight = 1,
+              fillOpacity = 1,
+              # color = ~color(),
+              fillColor = ~colorQuantile(react_mapcolor_hosp_region(),  values)(values), 
+              label = ~paste0("Region: ", 
+                              geo , 
+                              " - ",
+                              "Rate per 100.000 inhabitants: ", 
+                              prettyNum(round(values,1), accuracy = 1)),
+              highlight = highlightOptions(weight = 2,
+                                           color = "darkgreen",
+                                           bringToFront = TRUE)) %>% 
+  addLegend(pal = qpal_spec,
+            title = "Quantiles",
+            values = ~values,
+            opacity = 1.0,
+            labFormat = labelFormat(transform = function(x) round(100*x)))
+
+
+leaf_spec
+
+})
+
+
+# EU Hospital - bar charts
+  react_barcolor_hosp_region <- reactive({
+
+    df_colors = brewer.pal.info
+    all_colors = rownames(df_colors)
+    
+    
+    seq_colors = df_colors %>% 
+      cbind(all_colors) %>% 
+      filter(category == "seq") %>% 
+      mutate(all_colors = as.character(all_colors)) %>% 
+      pull(all_colors)
+
+    
+### Preparing single color list to map over for bar/densities!
+   colors = as.list(seq_colors[1:2]) 
+   
+   fun_color_extract = function(couleur){
+
+  brewer.pal(5, couleur)[5]
+
+}
+
+map_colors = map(colors, fun_color_extract)
+    
+    data5 <-  tibble(Number = 1:2,
+                     Color = unlist(map_colors),
+                     Category = c("Health Personel", 
+                                  "Hospital Beds"))
+      
+    barcol_selected = data5 %>% 
+      filter(Category == input$hosp_region) %>% 
+      pull(Color)
+
+    barcol_selected
+    
+  })
+
+
+```
+
+
+```{r hosp_region_sup}
+
+renderLeaflet({
+
+  react_hosp_region_leaf()
+  
+})
+
+
+```
+
+
+### Top-15 Charts
+
+```{r top10-hosp-region}
+
+renderPlotly({
+   
+      cntybar_top = ggplot(react_hosp_region() %>% 
+                        arrange(-values) %>% top_n(15), 
+                      aes(x = fct_reorder(geo, values),
+                          y = values,
+                          fill = input$hosp_region)) + 
+        geom_col(show.legend = FALSE) +
+   
+        scale_x_discrete(name = "") +
+        scale_y_continuous(name = "Per 100.000 Inhabitants",
+                           labels = scales::comma) +
+        scale_fill_manual(values = react_barcolor_hosp_region()) +
+
+        coord_flip()
+      
+      
+     ggplotly(cntybar_top, tooltip = c("values"))  %>% layout(showlegend = FALSE)
+})     
+```
+
+
+### Bottom-15 Charts
+
+```{r bottom10-hosp-region}
+
+renderPlotly({
+   
+      cntybar_bottom = ggplot(react_hosp_region() %>% 
+                        arrange(-values) %>% top_n(-15), 
+                      aes(x = fct_reorder(geo, -values),
+                          y = values,
+                          fill = input$hosp_region)) + 
+        geom_col(show.legend = FALSE) +
+   
+        scale_x_discrete(name = "") +
+        scale_y_continuous(name = "Per 100.000 Inhabitants",
+                           labels = scales::comma) +
+        scale_fill_manual(values = react_barcolor_hosp_region()) +
+
+        coord_flip() 
+      
+     ggplotly(cntybar_bottom, tooltip = c("values"))  %>% layout(showlegend = FALSE)
+     
+     
+})     
+```
+
+### Densities
+
+```{r hosp_region_density}
+
+#### Densities - regional for extra health data!
+renderPlot({
+
+    ggplot(react_hosp_region(),
+           aes(x = values, 
+               fill = input$hosp_region)) + 
+    geom_density(alpha = .5, 
+               color = NA,
+               show.legend = FALSE) + 
+    scale_x_continuous("Per 100.000 Inhabitants") +
+    scale_fill_manual(values = react_barcolor_hosp_region())
+  
+})
+```
+
+
+### Data
+
+```{r hosp_extra_region-data}
+
+DT::renderDataTable({
+
+datatable(hosp_extra_region %>%
+            select(Country = geo,
+                   Indicator = variable,
+                   Rate = values) %>%
+            arrange(-Rate),
+          rownames=FALSE,
+          extensions = c("FixedColumns"),
+          filter = 'top',
+          options = list(scrollX = TRUE,
+                         fixedColumns = list(leftColumns = 1),
+                         pageLength=5,
+                         language = list(sSearch = "Country Filter:")))  %>%
+  formatRound("Rate",
+              mark = ".",
+              digits = 1)
+})
+
+
+```
+
+
+
+Column {data-width=500 .tabset}
+-----------------------------------------------------------------------
+
+
+```{r socio_region_select}
+
+selectInput("socio_region", 
+            "Select a socio-economic indicator:",
+            choices = c(levels(socio_extra_region$variable))) 
+```
+
+
+
+
+### Indicator Maps
+
+```{r reactive_socio_region, include = FALSE}
+
+  react_socio_gregion <- reactive({
+
+    data1 <- socio_extra_gregion 
+
+      data1 <- data1 %>% 
+
+        filter(variable == input$socio_region) # 3 variables principales
+    
+    data1
+  })
+
+react_socio_region <- reactive({
+
+    data1 <- socio_extra_region 
+
+      data1 <- data1 %>% 
+
+        filter(variable == input$socio_region) # 3 variables principales
+    
+    data1
+  })
+
+  # EU socio data - regional! 
+  react_mapcolor_socio_region <- reactive({
+
+    df_colors = brewer.pal.info
+    all_colors = rownames(df_colors)
+    
+    
+    seq_colors = df_colors %>% 
+      cbind(all_colors) %>% 
+      filter(category == "seq") %>% 
+      mutate(all_colors = as.character(all_colors)) %>% 
+      pull(all_colors)
+
+    
+### Preparing 2 list to map over for colored leaflet maps
+   colors = as.list(seq_colors[1:8]) 
+   
+#    fun_color_extract = function(couleur){
+#   
+#   brewer.pal(5, couleur)[5]
+#   
+# }
+# map_colors = map(colors, fun_color_extract)
+    
+    data4 <-  tibble(Number = 1:8,
+                     Color = unlist(colors),
+                     Category = c("GDP per capita", 
+                                  "Old dependency ratio 60_20", 
+                                  "Old dependency ratio 65_15", 
+                                  "Proportion of 60-64 population", 
+                                  "Proportion of 60+ population", 
+                                  "Proportion of 65-69 population", 
+                                  "Proportion of 65+ population", 
+                                  "Women per 100 men"))
+      
+    mapcol_selected = data4 %>% 
+      filter(Category == input$socio_region) %>%
+      pull(Color)
+
+    mapcol_selected
+    
+  })
+  
+
+react_socio_region_leaf <- reactive({
+  
+data_leaf = react_socio_gregion()
+
+qpal_spec <- colorQuantile(react_mapcolor_socio_region(),
+                        domain = data_leaf %>% 
+                          pull(values), 
+                        n = 5)
+
+leaf_spec = data_leaf %>% # ATTENTION if needed! st_as_sf() conversion to SF!
+  # filter(Combination == input$country_gender2) %>% 
+  # pluck("DataLongCountryGIS") %>% 
+  # pluck(1) %>% 
+  # rename(Rate = values) %>% 
+  # filter(icd10  == input$country_categories) %>% 
+  # st_as_sf() %>% 
+  
+  leaflet() %>% 
+  addProviderTiles(providers$Esri.WorldGrayCanvas,
+                   options = providerTileOptions(opacity = 0.5)) %>% 
+  setView(lat = 55, lng = 20, zoom = 3) %>%
+  addPolygons(weight = 1,
+              fillOpacity = 1,
+              # color = ~color(),
+              fillColor = ~colorQuantile(react_mapcolor_socio_region(),  values)(values), 
+              label = ~paste0("Region: ", 
+                              geo , 
+                              " - ",
+                              "Rate: ", 
+                              prettyNum(round(values,1), accuracy = 1)),
+              highlight = highlightOptions(weight = 2,
+                                           color = "darkgreen",
+                                           bringToFront = TRUE)) %>% 
+  addLegend(pal = qpal_spec,
+            title = "Quantiles",
+            values = ~values,
+            opacity = 1.0,
+            labFormat = labelFormat(transform = function(x) round(100*x)))
+
+
+leaf_spec
+
+})
+
+
+# EU Hospital Discharge for Clusters by Gender 
+  react_barcolor_socio_region <- reactive({
+
+    df_colors = brewer.pal.info
+    all_colors = rownames(df_colors)
+    
+    
+    seq_colors = df_colors %>% 
+      cbind(all_colors) %>% 
+      filter(category == "seq") %>% 
+      mutate(all_colors = as.character(all_colors)) %>% 
+      pull(all_colors)
+
+    
+### Preparing single colors for bars/densities!
+   colors = as.list(seq_colors[1:8]) 
+   
+   fun_color_extract = function(couleur){
+
+  brewer.pal(5, couleur)[5]
+
+}
+
+map_colors = map(colors, fun_color_extract)
+    
+    data5 <-  tibble(Number = 1:8,
+                     Color = unlist(map_colors),
+                     Category = c("GDP per capita", 
+                                  "Old dependency ratio 60_20", 
+                                  "Old dependency ratio 65_15", 
+                                  "Proportion of 60-64 population", 
+                                  "Proportion of 60+ population", 
+                                  "Proportion of 65-69 population", 
+                                  "Proportion of 65+ population", 
+                                  "Women per 100 men"))
+      
+    barcol_selected = data5 %>% 
+      filter(Category == input$socio_region) %>% 
+      pull(Color)
+
+    barcol_selected
+    
+  })
+
+
+```
+
+
+```{r socio_region_sup}
+
+# br()
+
+renderLeaflet({
+
+  react_socio_region_leaf()
+  
+})
+
+```
+
+
+### Top-15 Charts
+
+```{r top10-socio-region}
+
+renderPlotly({
+   
+      cntybar_top = ggplot(react_socio_region() %>% 
+                        arrange(-values) %>% top_n(15), 
+                      aes(x = fct_reorder(geo, values),
+                          y = values,
+                          fill = input$socio_region)) + 
+        geom_col(show.legend = FALSE) +
+   
+        scale_x_discrete(name = "") +
+        scale_y_continuous(name = "Per 100.000 Inhabitants",
+                           labels = scales::comma) +
+        scale_fill_manual(values = react_barcolor_socio_region()) +
+
+        coord_flip()
+      
+      
+     ggplotly(cntybar_top, tooltip = c("values"))  %>% layout(showlegend = FALSE)
+})     
+```
+
+
+### Bottom-15 Charts
+
+```{r bottom10-socio-region}
+
+renderPlotly({
+   
+      cntybar_bottom = ggplot(react_socio_region() %>% 
+                        arrange(-values) %>% top_n(-15), 
+                      aes(x = fct_reorder(geo, -values),
+                          y = values,
+                          fill = input$socio_region)) + 
+        geom_col(show.legend = FALSE) +
+   
+        scale_x_discrete(name = "") +
+        scale_y_continuous(name = "Per 100.000 Inhabitants",
+                           labels = scales::comma) +
+        scale_fill_manual(values = react_barcolor_socio_region()) +
+
+        coord_flip() 
+      
+     ggplotly(cntybar_bottom, tooltip = c("values"))  %>% layout(showlegend = FALSE)
+     
+     
+})     
+```
+
+### Densities
+
+```{r socio_region_density}
+
+#### Densities
+renderPlot({
+
+  ggplot(react_socio_region(),
+         aes(x = values, fill = input$socio_region)) + 
+    geom_density(alpha = .5, 
+               color = NA,
+               show.legend = FALSE) + 
+    scale_x_continuous("Per 100.000 Inhabitants") +
+    scale_fill_manual(values = react_barcolor_socio_region())
+  
+})
+```
+
+
+
+### Data
+
+```{r socio_extra_region-data}
+
+
+DT::renderDataTable({
+
+datatable(socio_extra_region %>%
+            select(Country = geo,
+                   Indicator = variable,
+                   Rate = values) %>%
+            arrange(-Rate),
+          rownames=FALSE,
+          extensions = c("FixedColumns"),
+          filter = 'top',
+          options = list(scrollX = TRUE,
+                         fixedColumns = list(leftColumns = 1),
+                         pageLength=5,
+                         language = list(sSearch = "Country Filter:")))  %>%
+  formatRound("Rate",
+              mark = ".",
+              digits = 1)
+})
+
+```
